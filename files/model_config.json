@@ -1,0 +1,52 @@
+{
+  "feature_columns": [
+    "crop_encoded",
+    "plot_acres",
+    "soil_nitrogen_kg_ha",
+    "soil_ph",
+    "organic_carbon_pct",
+    "phosphorus_kg_ha",
+    "potassium_kg_ha",
+    "days_since_sowing",
+    "stage_encoded",
+    "ndvi",
+    "district_encoded"
+  ],
+  "target_column": "optimal_solid_urea_pct",
+  "crop_classes": {
+    "paddy": 0,
+    "wheat": 1
+  },
+  "stage_classes": {
+    "flowering": 0,
+    "germination": 1,
+    "grain_filling": 2,
+    "heading": 3,
+    "jointing": 4,
+    "panicle_initiation": 5,
+    "seedling": 6,
+    "tillering": 7
+  },
+  "district_classes": {
+    "Amritsar": 0,
+    "Bathinda": 1,
+    "Firozpur": 2,
+    "Gurdaspur": 3,
+    "Jalandhar": 4,
+    "Kapurthala": 5,
+    "Ludhiana": 6,
+    "Moga": 7,
+    "Patiala": 8,
+    "Sangrur": 9
+  },
+  "model_metrics": {
+    "test_mae": 3.0,
+    "test_rmse": 3.77,
+    "test_r2": 0.8304,
+    "cv_mean_mae": 2.96
+  },
+  "n_requirement_kg_ha": {
+    "wheat": 120,
+    "paddy": 110
+  }
+}

@@ -1,0 +1,84 @@
+This documentation is designed for a hackathon pitch deck or project report. It frames the "Bhoomi-AI" concept as a sophisticated, data-driven response to the agricultural crisis in Punjab.
+Project Documentation: Bhoomi-AI
+1. Problem Statement
+
+Punjab, the "Breadbasket of India," is facing a soil health emergency. Decades of the Green Revolution have led to:
+
+    Fertilizer Overuse: Excessive application of solid urea (CH4​N2​O) has acidified the soil and depleted organic carbon.
+
+    The Nano Urea Gap: While Nano Urea reduces chemical runoff, using it as a 100% replacement often leads to a 21% yield drop because it bypasses the soil, leaving the roots and soil microbiome starved.
+
+    The Timing Crisis: Foliar sprays (Nano Urea) are only effective when plant stomata are open. Farmers currently spray at random times, leading to significant nutrient waste.
+
+2. Goal
+
+To create an AI-driven "Hybrid Nutrition" platform that helps farmers reduce chemical urea consumption by 50% without compromising yield, while simultaneously monitoring and restoring soil organic health.
+3. Target User
+
+    Primary: Small-to-medium-scale farmers in Punjab (specifically those growing wheat and paddy).
+
+    Secondary: Agri-Input cooperatives and Government extension officers looking to track regional soil health.
+
+4. Proposed Solution
+
+Bhoomi-AI is a web-based decision-support system. It moves away from the "one size fits all" approach of solid urea by providing:
+
+    Dynamic Dosage Logic: A hybrid plan of solid urea (for soil/roots) + Nano Urea (for leaves).
+
+    The "Golden Window" Alert: Real-time weather integration to tell farmers the exact hour to spray for maximum absorption.
+
+    Satellite Soil Tracking: Using Sentinel-2 data to visualize soil recovery (Organic Carbon levels) over time.
+
+5. Role of AI
+
+    Predictive Analytics (Dosage): A Random Forest model that ingest historical yield data, soil type, and current NDVI (Normalized Difference Vegetation Index) to calculate the minimum nitrogen requirement.
+
+    Weather Intelligence (VPD Model): An AI algorithm that calculates the Vapor Pressure Deficit (VPD). Stomata (leaf pores) open optimally when the VPD is between 0.8 and 1.2 kPa. The AI predicts this window to ensure 90%+ Nano Urea uptake.
+
+    Computer Vision (Future Scope): Analyzing leaf photos to detect "Nitrogen Hunger" before it’s visible to the naked eye.
+
+6. MVP Scope (Minimum Viable Product)
+
+    Web Dashboard: Built with Streamlit or React.
+
+    Dosage Calculator: A form where farmers input property size and crop type to get a personalized "Hybrid Schedule."
+
+    Weather Integration: Real-time API pull (OpenWeather) to provide a "Spray/Don't Spray" status.
+
+    Static Satellite View: A mockup or basic API integration showing the NDVI (Greenness) of a selected plot.
+
+7. Success Criteria
+
+    Nitrogen Use Efficiency (NUE): Increasing efficiency from the current 30–40% (solid urea) to 80%+ (precision Nano Urea).
+
+    Yield Stability: Maintaining crop yields within ±2% of traditional chemical farming.
+
+    Cost Reduction: Reducing a farmer’s seasonal input cost by at least 20%.
+
+8. Assumptions & Constraints
+
+    Assumptions: Farmers have access to smartphones and 4G/5G connectivity. Government soil health card data is accessible via API or manual entry.
+
+    Constraints: Satellite imagery (Sentinel-2) has a 10m resolution, which might be coarse for very small fragmented plots. Cloud cover during monsoons can obstruct satellite views.
+
+9. Dosage Logic: How much to spray?
+
+The app uses the following logic to replace a portion of conventional urea with Nano Urea. Generally, 1 bottle (500 ml) of Nano Urea replaces 1 bag (45 kg) of conventional urea.
+The Calculation Formula
+
+To calculate the total liquid required for a property of size A (in acres):
+Vtotal​=A×Drate​
+
+Where:
+
+    A = Property size in acres.
+
+    Drate​ = Recommended dosage (usually 2 to 4 ml of Nano Urea per liter of water).
+
+Quick Reference Table
+Property Size	Traditional Urea (Current)	Bhoomi-AI Hybrid Plan	Water Required for Spray
+1 Acre	3 Bags (135 kg)	1.5 Bags + 1 Bottle Nano Urea	100–125 Liters
+5 Acres	15 Bags (675 kg)	7.5 Bags + 5 Bottles Nano Urea	500–600 Liters
+10 Acres	30 Bags (1350 kg)	15 Bags + 10 Bottles Nano Urea	1000–1200 Liters
+
+    Crucial Note for Hackathon: Emphasize that water quality matters. The AI should advise that the water pH should be near neutral (6.5–7.5) for the Nano Urea particles to remain stable and effective.
