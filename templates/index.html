@@ -1,0 +1,950 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8"/>
+  <meta name="viewport" content="width=device-width, initial-scale=1.0"/>
+  <title>Agriculture AI — Soil & Crop Intelligence</title>
+  <link href="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/css/bootstrap.min.css" rel="stylesheet"/>
+  <link href="https://unpkg.com/leaflet@1.9.4/dist/leaflet.css" rel="stylesheet"/>
+  <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.5.0/css/all.min.css" rel="stylesheet"/>
+  <style>
+    :root {
+      --green:  #1b4332;
+      --green2: #40916c;
+      --green3: #74c69d;
+      --accent: #52b788;
+      --bg:     #f5f7f5;
+      --panel:  #ffffff;
+      --border: #e0e8e3;
+      --text:   #1a1a2e;
+      --muted:  #6b7280;
+      --nav-h:  52px;
+    }
+    *, *::before, *::after { box-sizing: border-box; margin: 0; padding: 0; }
+    body { font-family: 'Segoe UI', system-ui, sans-serif; background: var(--bg); color: var(--text); height: 100vh; display: flex; flex-direction: column; overflow: hidden; }
+
+    /* ── Navbar ─────────────────────────────────────────── */
+    .navbar {
+      height: var(--nav-h); min-height: var(--nav-h);
+      background: var(--green) !important;
+      padding: 0 1.25rem;
+      display: flex; align-items: center; gap: 1rem;
+      box-shadow: 0 2px 8px rgba(0,0,0,0.25);
+      flex-shrink: 0; z-index: 1100;
+    }
+    .brand { display: flex; align-items: center; gap: 0.5rem; color: #fff; font-weight: 800; font-size: 1.05rem; white-space: nowrap; }
+    .brand i { color: var(--green3); }
+    .mode-toolbar { display: flex; background: rgba(255,255,255,0.1); border-radius: 20px; overflow: hidden; border: 1px solid rgba(255,255,255,0.2); }
+    .mode-btn { padding: 0.28rem 0.9rem; font-size: 0.77rem; font-weight: 600; border: none; background: transparent; cursor: pointer; display: flex; align-items: center; gap: 0.35rem; color: rgba(255,255,255,0.65); transition: all 0.15s; white-space: nowrap; }
+    .mode-btn + .mode-btn { border-left: 1px solid rgba(255,255,255,0.18); }
+    .mode-btn.active { background: rgba(255,255,255,0.2); color: #fff; }
+    .mode-btn:hover:not(.active) { color: #fff; background: rgba(255,255,255,0.08); }
+    .nav-hint { color: rgba(255,255,255,0.55); font-size: 0.78rem; margin-left: auto; white-space: nowrap; }
+
+    /* ── Search box ─────────────────────────────────────── */
+    .search-wrap { position: relative; margin-left: 0.75rem; }
+    .search-input {
+      background: rgba(255,255,255,0.12);
+      border: 1px solid rgba(255,255,255,0.25);
+      border-radius: 20px;
+      color: #fff;
+      font-size: 0.8rem;
+      padding: 0.3rem 0.9rem 0.3rem 2rem;
+      width: 220px;
+      outline: none;
+      transition: all 0.2s;
+    }
+    .search-input::placeholder { color: rgba(255,255,255,0.5); }
+    .search-input:focus { background: rgba(255,255,255,0.2); border-color: rgba(255,255,255,0.5); width: 260px; }
+    .search-icon {
+      position: absolute; left: 0.65rem; top: 50%; transform: translateY(-50%);
+      color: rgba(255,255,255,0.6); font-size: 0.75rem; pointer-events: none;
+    }
+    .search-clear {
+      position: absolute; right: 0.65rem; top: 50%; transform: translateY(-50%);
+      color: rgba(255,255,255,0.5); font-size: 0.7rem; cursor: pointer;
+      display: none; background: none; border: none; padding: 0;
+    }
+    .search-clear:hover { color: #fff; }
+    .search-dropdown {
+      position: absolute; top: calc(100% + 6px); left: 0; right: 0;
+      background: #fff; border-radius: 10px;
+      box-shadow: 0 4px 20px rgba(0,0,0,0.18);
+      z-index: 2000; overflow: hidden; display: none;
+    }
+    .search-dropdown.show { display: block; }
+    .search-item {
+      padding: 0.55rem 0.85rem; font-size: 0.8rem; color: var(--text);
+      cursor: pointer; display: flex; align-items: flex-start; gap: 0.5rem;
+      border-bottom: 1px solid #f3f4f6;
+    }
+    .search-item:last-child { border: none; }
+    .search-item:hover { background: #f0fdf4; }
+    .search-item i { color: var(--green2); margin-top: 2px; flex-shrink: 0; }
+    .search-item .si-name { font-weight: 600; line-height: 1.3; }
+    .search-item .si-sub  { font-size: 0.71rem; color: var(--muted); }
+    .search-spinner { padding: 0.7rem; text-align: center; color: var(--muted); font-size: 0.78rem; }
+
+    /* ── Main layout ────────────────────────────────────── */
+    .main { display: flex; flex: 1; overflow: hidden; }
+
+    /* ── Map ────────────────────────────────────────────── */
+    #map { flex: 1; position: relative; cursor: crosshair; }
+
+    /* ── Results panel ──────────────────────────────────── */
+    .panel {
+      width: 460px; min-width: 460px;
+      display: flex; flex-direction: column;
+      background: var(--bg);
+      border-left: 1px solid var(--border);
+      overflow: hidden;
+      z-index: 10;
+    }
+
+    /* ── Panel header (sticky) ──────────────────────────── */
+    .panel-head {
+      background: var(--green);
+      color: #fff;
+      padding: 0.9rem 1.1rem 0.75rem;
+      flex-shrink: 0;
+    }
+    .loc-name { font-size: 1rem; font-weight: 700; line-height: 1.25; }
+    .loc-sub  { font-size: 0.75rem; opacity: 0.7; margin-top: 2px; }
+    .loc-area { display: inline-flex; align-items: center; gap: 0.3rem; background: rgba(255,255,255,0.15); border-radius: 12px; padding: 0.15rem 0.6rem; font-size: 0.72rem; margin-top: 5px; }
+
+    /* ── Overview stat strip ────────────────────────────── */
+    .stat-strip {
+      display: grid;
+      grid-template-columns: repeat(3, 1fr);
+      gap: 0.5rem;
+      padding: 0.75rem 1rem;
+      background: var(--panel);
+      border-bottom: 1px solid var(--border);
+      flex-shrink: 0;
+    }
+    .stat-chip {
+      background: var(--bg);
+      border-radius: 10px;
+      padding: 0.55rem 0.6rem;
+      display: flex; flex-direction: column; align-items: center;
+      gap: 2px; text-align: center;
+    }
+    .stat-chip .s-icon { font-size: 1.15rem; line-height: 1; }
+    .stat-chip .s-val  { font-size: 0.92rem; font-weight: 800; color: var(--text); }
+    .stat-chip .s-lbl  { font-size: 0.62rem; color: var(--muted); font-weight: 500; text-transform: uppercase; letter-spacing: 0.04em; }
+    .stat-chip.highlight { background: #e8f5e9; }
+    .fertility-pill { font-size: 0.8rem; font-weight: 800; text-transform: uppercase; padding: 0.15rem 0.65rem; border-radius: 12px; }
+    .fertility-pill.high   { background: #d1fae5; color: #065f46; }
+    .fertility-pill.medium { background: #fef9c3; color: #92400e; }
+    .fertility-pill.low    { background: #fee2e2; color: #991b1b; }
+
+    /* ── Panel body (scrollable) ────────────────────────── */
+    .panel-body { flex: 1; overflow-y: auto; padding: 0.6rem; }
+    .panel-body::-webkit-scrollbar { width: 4px; }
+    .panel-body::-webkit-scrollbar-thumb { background: #c4d7cc; border-radius: 2px; }
+
+    /* ── Placeholder & loading ──────────────────────────── */
+    .center-state { flex: 1; display: flex; flex-direction: column; align-items: center; justify-content: center; padding: 2rem; text-align: center; gap: 1rem; }
+    .center-state .icon-ring { width: 76px; height: 76px; border-radius: 50%; background: #e8f5e9; display: flex; align-items: center; justify-content: center; font-size: 2rem; color: var(--green2); }
+    .center-state h6 { font-weight: 700; margin: 0; }
+    .center-state p  { font-size: 0.85rem; color: var(--muted); margin: 0; }
+    .spinner-ring { width: 48px; height: 48px; border: 4px solid #d1fae5; border-top-color: var(--green2); border-radius: 50%; animation: spin 0.8s linear infinite; }
+    @keyframes spin { to { transform: rotate(360deg); } }
+
+    /* ── Accordion ──────────────────────────────────────── */
+    .acc-item { background: var(--panel); border-radius: 12px; margin-bottom: 0.5rem; overflow: hidden; box-shadow: 0 1px 3px rgba(0,0,0,0.06); }
+    .acc-btn {
+      width: 100%; display: flex; align-items: center; gap: 0.6rem;
+      padding: 0.7rem 1rem; border: none; background: transparent;
+      font-size: 0.82rem; font-weight: 700; color: var(--text);
+      cursor: pointer; text-align: left;
+    }
+    .acc-btn:hover { background: #f9fafb; }
+    .acc-btn .acc-icon { width: 28px; height: 28px; border-radius: 7px; display: flex; align-items: center; justify-content: center; font-size: 0.85rem; flex-shrink: 0; }
+    .acc-btn .chevron { margin-left: auto; font-size: 0.7rem; color: var(--muted); transition: transform 0.2s; }
+    .acc-btn.open .chevron { transform: rotate(180deg); }
+    .acc-body { display: none; padding: 0 1rem 0.85rem; }
+    .acc-body.open { display: block; }
+
+    /* Color themes per section */
+    .ic-weather   { background: #dbeafe; color: #1d4ed8; }
+    .ic-forecast  { background: #e0f2fe; color: #0369a1; }
+    .ic-soil      { background: #fef3c7; color: #92400e; }
+    .ic-texture   { background: #fce7f3; color: #9d174d; }
+    .ic-fertility { background: #d1fae5; color: #065f46; }
+    .ic-crops     { background: #ecfccb; color: #3f6212; }
+    .ic-fert      { background: #ffedd5; color: #9a3412; }
+    .ic-calendar  { background: #e0e7ff; color: #3730a3; }
+    .ic-msp       { background: #fee2e2; color: #991b1b; }
+    .ic-apmc      { background: #ede9fe; color: #5b21b6; }
+
+    /* ── Weather pills ──────────────────────────────────── */
+    .wx-pills { display: flex; gap: 0.6rem; }
+    .wx-pill { flex: 1; background: var(--bg); border-radius: 10px; padding: 0.6rem 0.75rem; display: flex; align-items: center; gap: 0.5rem; }
+    .wx-pill i { font-size: 1.3rem; }
+    .wx-pill .v { font-size: 1.05rem; font-weight: 700; }
+    .wx-pill .l { font-size: 0.68rem; color: var(--muted); }
+
+    /* ── Forecast row ───────────────────────────────────── */
+    .fc-row { display: flex; gap: 0.35rem; overflow-x: auto; padding-bottom: 2px; }
+    .fc-row::-webkit-scrollbar { height: 3px; }
+    .fc-row::-webkit-scrollbar-thumb { background: #c4d7cc; }
+    .fc-day { flex: 0 0 60px; background: var(--bg); border-radius: 9px; padding: 0.5rem 0.35rem; text-align: center; }
+    .fc-day .fd { font-size: 0.7rem; font-weight: 700; color: var(--text); }
+    .fc-day .fi { font-size: 1.4rem; line-height: 1.5; }
+    .fc-day .ft { font-size: 0.72rem; font-weight: 600; }
+    .fc-day .fr { font-size: 0.65rem; color: #2563eb; }
+
+    /* ── Soil grid ──────────────────────────────────────── */
+    .soil-grid { display: grid; grid-template-columns: 1fr 1fr; gap: 0.35rem; }
+    .soil-item { background: var(--bg); border-radius: 8px; padding: 0.4rem 0.6rem; display: flex; justify-content: space-between; align-items: center; }
+    .soil-item .sn { font-size: 0.72rem; color: var(--muted); font-weight: 600; text-transform: uppercase; }
+    .soil-item .sv { font-size: 0.88rem; font-weight: 700; }
+
+    /* ── Texture bars ───────────────────────────────────── */
+    .tex-row { display: flex; align-items: center; gap: 0.5rem; margin-bottom: 0.4rem; font-size: 0.78rem; }
+    .tex-row .tl { width: 34px; font-weight: 700; color: var(--muted); }
+    .tex-row .tp { width: 36px; text-align: right; font-weight: 700; }
+    .progress { flex: 1; height: 8px; border-radius: 4px; background: #e5e7eb; overflow: hidden; }
+    .progress-bar { height: 100%; border-radius: 4px; transition: width 0.6s ease; }
+
+    /* ── Fertility ──────────────────────────────────────── */
+    .fert-display { display: flex; align-items: center; gap: 1rem; }
+    .fert-big { font-size: 1.5rem; font-weight: 900; text-transform: uppercase; letter-spacing: 0.05em; }
+    .fert-big.high   { color: #065f46; }
+    .fert-big.medium { color: #92400e; }
+    .fert-big.low    { color: #991b1b; }
+    .conf-wrap { flex: 1; }
+    .conf-wrap .cl { font-size: 0.7rem; color: var(--muted); margin-bottom: 3px; }
+
+    /* ── Crop ranking ───────────────────────────────────── */
+    .crop-row { display: flex; align-items: center; gap: 0.55rem; padding: 0.35rem 0; border-bottom: 1px solid #f3f4f6; }
+    .crop-row:last-child { border: none; }
+    .crop-rank { width: 22px; height: 22px; border-radius: 50%; background: var(--green2); color: #fff; font-size: 0.68rem; font-weight: 700; display: flex; align-items: center; justify-content: center; flex-shrink: 0; }
+    .crop-rank.first { background: #f59e0b; }
+    .crop-name { flex: 1; font-size: 0.84rem; font-weight: 600; text-transform: capitalize; }
+    .crop-bar { flex: 1; }
+    .crop-score { font-size: 0.78rem; font-weight: 700; color: var(--green2); width: 38px; text-align: right; }
+
+    /* ── Fertilizer ─────────────────────────────────────── */
+    .fert-crop { font-size: 0.85rem; font-weight: 700; color: var(--green); text-transform: capitalize; margin-bottom: 0.5rem; display: flex; align-items: center; gap: 0.4rem; }
+    .fert-row { display: flex; align-items: flex-start; gap: 0.5rem; padding: 0.32rem 0; border-bottom: 1px solid #f3f4f6; font-size: 0.8rem; }
+    .fert-row:last-child { border: none; }
+    .fert-n { font-weight: 800; width: 18px; flex-shrink: 0; }
+    .fert-row.ok .fert-n  { color: #059669; }
+    .fert-row.add .fert-n { color: #dc2626; }
+    .fert-msg { color: var(--muted); line-height: 1.4; }
+
+    /* ── Calendar ───────────────────────────────────────── */
+    .cal-info { font-size: 0.8rem; margin-bottom: 0.55rem; display: flex; align-items: center; gap: 0.5rem; flex-wrap: wrap; }
+    .season-badge { font-size: 0.68rem; font-weight: 700; padding: 0.15rem 0.55rem; border-radius: 10px; background: var(--green2); color: #fff; }
+    .cal-grid { display: grid; grid-template-columns: repeat(6, 1fr); gap: 3px; }
+    .cal-m { padding: 0.3rem 0; border-radius: 5px; text-align: center; font-size: 0.68rem; font-weight: 600; background: #f3f4f6; color: #9ca3af; }
+    .cal-m.sow     { background: #bbf7d0; color: #065f46; }
+    .cal-m.harvest { background: #fde68a; color: #92400e; }
+    .cal-m.both    { background: linear-gradient(135deg,#bbf7d0 50%,#fde68a 50%); color: #065f46; }
+    .cal-legend { display: flex; gap: 0.75rem; margin-top: 0.45rem; font-size: 0.7rem; }
+    .leg { display: flex; align-items: center; gap: 0.25rem; }
+    .leg-dot { width: 10px; height: 10px; border-radius: 2px; }
+
+    /* ── MSP ────────────────────────────────────────────── */
+    .msp-big { font-size: 1.5rem; font-weight: 900; color: #dc2626; display: flex; align-items: baseline; gap: 0.35rem; margin-bottom: 0.6rem; }
+    .msp-big small { font-size: 0.72rem; font-weight: 400; color: var(--muted); }
+    .scheme-item { display: flex; gap: 0.5rem; padding: 0.35rem 0; border-bottom: 1px solid #f3f4f6; font-size: 0.78rem; }
+    .scheme-item:last-child { border: none; }
+    .scheme-item i { color: var(--green2); margin-top: 2px; flex-shrink: 0; }
+    .scheme-name { font-weight: 700; font-size: 0.8rem; }
+    .scheme-ben  { color: var(--muted); font-size: 0.71rem; }
+    .scheme-link { font-size: 0.7rem; color: #2563eb; text-decoration: none; }
+
+    /* ── APMC cards ─────────────────────────────────────── */
+    .apmc-card { border: 1px solid #e0e7ff; border-radius: 10px; padding: 0.65rem 0.75rem; margin-bottom: 0.45rem; background: #faf5ff; }
+    .apmc-card:last-child { margin: 0; }
+    .apmc-top { display: flex; justify-content: space-between; align-items: flex-start; gap: 0.5rem; }
+    .apmc-name { font-weight: 700; font-size: 0.84rem; }
+    .apmc-dist { background: #ede9fe; color: #5b21b6; font-size: 0.72rem; font-weight: 700; padding: 0.12rem 0.55rem; border-radius: 10px; white-space: nowrap; flex-shrink: 0; }
+    .apmc-loc  { font-size: 0.71rem; color: var(--muted); margin: 2px 0 5px; }
+    .apmc-tags { display: flex; flex-wrap: wrap; gap: 3px; }
+    .apmc-tag  { background: #d1fae5; color: #065f46; font-size: 0.65rem; font-weight: 600; padding: 1px 7px; border-radius: 10px; }
+    .apmc-link { font-size: 0.7rem; color: #5b21b6; text-decoration: none; display: inline-flex; align-items: center; gap: 3px; margin-top: 5px; }
+    .apmc-link:hover { text-decoration: underline; }
+
+    /* ── Map overlays ───────────────────────────────────── */
+    .locate-btn {
+      position: absolute; bottom: 90px; left: 10px; z-index: 999;
+      background: #fff; border: 2px solid rgba(0,0,0,0.15); border-radius: 8px;
+      width: 36px; height: 36px; display: flex; align-items: center; justify-content: center;
+      cursor: pointer; box-shadow: 0 2px 6px rgba(0,0,0,0.15); transition: background 0.15s;
+    }
+    .locate-btn:hover { background: #f0f4f1; }
+    .locate-btn i { color: #2563eb; font-size: 1rem; }
+    .locate-btn.locating i { color: var(--green2); animation: spin 1s linear infinite; }
+
+    .poly-bar {
+      position: absolute; bottom: 30px; left: 50%; transform: translateX(-50%);
+      z-index: 999; display: none; gap: 0.5rem; align-items: center;
+      background: #1a1a2e; color: #fff; border-radius: 30px;
+      padding: 0.4rem 1rem; font-size: 0.82rem; box-shadow: 0 2px 12px rgba(0,0,0,0.25);
+    }
+    .poly-bar.show { display: flex; }
+    .poly-bar .finish-btn { background: var(--green2); color: #fff; border: none; border-radius: 20px; padding: 0.25rem 0.85rem; font-size: 0.78rem; font-weight: 700; cursor: pointer; }
+    .poly-bar .cancel-btn { background: transparent; color: #9ca3af; border: none; font-size: 0.78rem; cursor: pointer; padding: 0.25rem 0.4rem; }
+
+    .india-toast {
+      position: absolute; top: 12px; left: 50%; transform: translateX(-50%);
+      z-index: 1000; background: #dc2626; color: #fff; border-radius: 20px;
+      padding: 0.38rem 1rem; font-size: 0.78rem; font-weight: 600;
+      box-shadow: 0 2px 10px rgba(0,0,0,0.2); display: none; align-items: center; gap: 0.4rem;
+      pointer-events: none; white-space: nowrap;
+    }
+    .india-toast.show { display: flex; }
+
+    .pulse-marker { width: 16px; height: 16px; background: var(--green2); border-radius: 50%; border: 3px solid #fff; animation: pulse-anim 1.5s ease-out infinite; }
+    @keyframes pulse-anim { 0% { box-shadow: 0 0 0 0 rgba(64,145,108,0.5); } 100% { box-shadow: 0 0 0 12px rgba(64,145,108,0); } }
+  </style>
+</head>
+<body>
+
+<!-- Navbar -->
+<nav class="navbar">
+  <div class="brand"><i class="fa-solid fa-seedling"></i> Agriculture AI</div>
+  <div class="mode-toolbar">
+    <button class="mode-btn active" id="btn-point"><i class="fa-solid fa-location-dot"></i> Single Point</button>
+    <button class="mode-btn" id="btn-polygon"><i class="fa-solid fa-draw-polygon"></i> Draw Area</button>
+  </div>
+  <div class="search-wrap">
+    <i class="fa-solid fa-magnifying-glass search-icon"></i>
+    <input class="search-input" id="search-input" type="text" placeholder="Search village, city…" autocomplete="off"/>
+    <button class="search-clear" id="search-clear"><i class="fa-solid fa-xmark"></i></button>
+    <div class="search-dropdown" id="search-dropdown"></div>
+  </div>
+  <!-- Lat/Lon direct entry -->
+  <div class="search-wrap" style="display:flex;gap:0.35rem;align-items:center">
+    <input id="inp-lat" type="number" step="any" placeholder="Lat" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:12px;color:#fff;font-size:0.77rem;padding:0.28rem 0.65rem;width:82px;outline:none" />
+    <input id="inp-lon" type="number" step="any" placeholder="Lon" style="background:rgba(255,255,255,0.12);border:1px solid rgba(255,255,255,0.25);border-radius:12px;color:#fff;font-size:0.77rem;padding:0.28rem 0.65rem;width:82px;outline:none" />
+    <button id="btn-goto" style="background:rgba(255,255,255,0.18);border:1px solid rgba(255,255,255,0.3);border-radius:12px;color:#fff;font-size:0.75rem;font-weight:600;padding:0.28rem 0.7rem;cursor:pointer;white-space:nowrap">Go</button>
+  </div>
+  <span class="nav-hint"><i class="fa-solid fa-hand-pointer me-1"></i>Click map to analyse</span>
+</nav>
+
+<div class="main">
+
+  <!-- Map -->
+  <div id="map">
+    <div class="india-toast" id="india-toast"><i class="fa-solid fa-triangle-exclamation"></i> Model trained on India data only</div>
+    <div class="poly-bar" id="poly-bar">
+      <i class="fa-solid fa-draw-polygon"></i>
+      <span>Click to add points · <b id="poly-count">0</b> pts</span>
+      <button class="finish-btn" id="poly-finish">Finish &amp; Analyse</button>
+      <button class="cancel-btn" id="poly-cancel">✕</button>
+    </div>
+    <button class="locate-btn" id="locate-btn" title="My location"><i class="fa-solid fa-location-crosshairs"></i></button>
+  </div>
+
+  <!-- Results Panel -->
+  <div class="panel">
+
+    <!-- Placeholder -->
+    <div class="center-state" id="state-placeholder">
+      <div class="icon-ring"><i class="fa-solid fa-map-location-dot"></i></div>
+      <h6>No location selected</h6>
+      <p>Click any point on the map to get full soil analysis, crop recommendations, forecast, and nearest APMC markets.</p>
+    </div>
+
+    <!-- Loading -->
+    <div class="center-state" id="state-loading" style="display:none">
+      <div class="spinner-ring"></div>
+      <h6>Analysing location…</h6>
+      <p>Fetching real-time weather, soil texture, forecast &amp; more</p>
+    </div>
+
+    <!-- Results -->
+    <div id="state-results" style="display:none; flex-direction:column; flex:1; overflow:hidden;">
+
+      <!-- Sticky header -->
+      <div class="panel-head" id="panel-head">
+        <div class="loc-name" id="loc-name">—</div>
+        <div class="loc-sub"  id="loc-sub">—</div>
+        <div class="loc-area" id="loc-area" style="display:none"><i class="fa-solid fa-vector-square"></i><span id="loc-area-text"></span></div>
+      </div>
+
+      <!-- Overview stat strip -->
+      <div class="stat-strip" id="stat-strip">
+        <div class="stat-chip">
+          <span class="s-icon">🌡️</span>
+          <span class="s-val" id="ov-temp">--</span>
+          <span class="s-lbl">Temperature</span>
+        </div>
+        <div class="stat-chip">
+          <span class="s-icon">🌧️</span>
+          <span class="s-val" id="ov-rain">--</span>
+          <span class="s-lbl">Rainfall/yr</span>
+        </div>
+        <div class="stat-chip highlight">
+          <span class="s-icon">🌱</span>
+          <span class="s-val" id="ov-fert">--</span>
+          <span class="s-lbl">Fertility</span>
+        </div>
+        <div class="stat-chip">
+          <span class="s-icon">🏆</span>
+          <span class="s-val" id="ov-crop">--</span>
+          <span class="s-lbl">Top Crop</span>
+        </div>
+        <div class="stat-chip">
+          <span class="s-icon">⚗️</span>
+          <span class="s-val" id="ov-ph">--</span>
+          <span class="s-lbl">Soil pH</span>
+        </div>
+        <div class="stat-chip">
+          <span class="s-icon">💧</span>
+          <span class="s-val" id="ov-clay">--</span>
+          <span class="s-lbl">Clay %</span>
+        </div>
+      </div>
+
+      <!-- Accordion body -->
+      <div class="panel-body">
+        <div id="accordion">
+
+          <!-- Direct Crop Recommendation -->
+          <div class="acc-item" style="border: 2px solid #bbf7d0;">
+            <button class="acc-btn open" data-target="sec-direct">
+              <span class="acc-icon" style="background:#d1fae5;color:#065f46"><i class="fa-solid fa-seedling"></i></span>
+              Crop Recommendation
+              <small style="font-weight:400;color:var(--muted);margin-left:4px">(run_model)</small>
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body open" id="sec-direct"></div>
+          </div>
+
+          <!-- Weather -->
+          <div class="acc-item">
+            <button class="acc-btn open" data-target="sec-weather">
+              <span class="acc-icon ic-weather"><i class="fa-solid fa-cloud-sun"></i></span>
+              Weather
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body open" id="sec-weather">
+              <div class="wx-pills">
+                <div class="wx-pill"><i class="fa-solid fa-temperature-half" style="color:#ef4444"></i><div><div class="v" id="wx-temp">--</div><div class="l">Avg Temp (NASA POWER)</div></div></div>
+                <div class="wx-pill"><i class="fa-solid fa-cloud-rain" style="color:#3b82f6"></i><div><div class="v" id="wx-rain">--</div><div class="l">Annual Rainfall</div></div></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- 7-day Forecast -->
+          <div class="acc-item">
+            <button class="acc-btn open" data-target="sec-forecast">
+              <span class="acc-icon ic-forecast"><i class="fa-solid fa-calendar-week"></i></span>
+              7-Day Forecast <small style="font-weight:400;color:var(--muted);margin-left:4px">(Open-Meteo)</small>
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body open" id="sec-forecast"></div>
+          </div>
+
+          <!-- Soil Parameters -->
+          <div class="acc-item">
+            <button class="acc-btn" data-target="sec-soil">
+              <span class="acc-icon ic-soil"><i class="fa-solid fa-hill"></i></span>
+              Soil Parameters <small style="font-weight:400;color:var(--muted);margin-left:4px">(ML Model)</small>
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body" id="sec-soil"></div>
+          </div>
+
+          <!-- Soil Texture -->
+          <div class="acc-item">
+            <button class="acc-btn" data-target="sec-texture">
+              <span class="acc-icon ic-texture"><i class="fa-solid fa-layer-group"></i></span>
+              Soil Texture <small style="font-weight:400;color:var(--muted);margin-left:4px">(SoilGrids / ISRIC)</small>
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body" id="sec-texture"></div>
+          </div>
+
+          <!-- Fertility -->
+          <div class="acc-item">
+            <button class="acc-btn" data-target="sec-fertility">
+              <span class="acc-icon ic-fertility"><i class="fa-solid fa-leaf"></i></span>
+              Soil Fertility Score
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body" id="sec-fertility"></div>
+          </div>
+
+          <!-- Crop Ranking -->
+          <div class="acc-item">
+            <button class="acc-btn open" data-target="sec-crops">
+              <span class="acc-icon ic-crops"><i class="fa-solid fa-ranking-star"></i></span>
+              Top 5 Suitable Crops
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body open" id="sec-crops"></div>
+          </div>
+
+          <!-- Fertilizer -->
+          <div class="acc-item">
+            <button class="acc-btn" data-target="sec-fert">
+              <span class="acc-icon ic-fert"><i class="fa-solid fa-flask"></i></span>
+              Fertilizer Advice
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body" id="sec-fert"></div>
+          </div>
+
+          <!-- Sowing Calendar -->
+          <div class="acc-item">
+            <button class="acc-btn" data-target="sec-calendar">
+              <span class="acc-icon ic-calendar"><i class="fa-solid fa-calendar-days"></i></span>
+              Sowing Calendar
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body" id="sec-calendar"></div>
+          </div>
+
+          <!-- MSP & Schemes -->
+          <div class="acc-item">
+            <button class="acc-btn" data-target="sec-msp">
+              <span class="acc-icon ic-msp"><i class="fa-solid fa-indian-rupee-sign"></i></span>
+              MSP &amp; Govt Schemes
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body" id="sec-msp"></div>
+          </div>
+
+          <!-- APMCs -->
+          <div class="acc-item">
+            <button class="acc-btn open" data-target="sec-apmc">
+              <span class="acc-icon ic-apmc"><i class="fa-solid fa-store"></i></span>
+              Nearest APMC Markets
+              <i class="fa-solid fa-chevron-down chevron"></i>
+            </button>
+            <div class="acc-body open" id="sec-apmc"></div>
+          </div>
+
+        </div><!-- /accordion -->
+      </div><!-- /panel-body -->
+    </div><!-- /state-results -->
+  </div><!-- /panel -->
+</div><!-- /main -->
+
+<script src="https://cdn.jsdelivr.net/npm/bootstrap@5.3.2/dist/js/bootstrap.bundle.min.js"></script>
+<script src="https://unpkg.com/leaflet@1.9.4/dist/leaflet.js"></script>
+<script>
+  // ── Map ────────────────────────────────────────────────────────────────────
+  const map = L.map("map", { zoomControl: true }).setView([20.5937, 78.9629], 5);
+  L.tileLayer("https://{s}.tile.openstreetmap.org/{z}/{x}/{y}.png", {
+    attribution: "© OpenStreetMap contributors", maxZoom: 18,
+  }).addTo(map);
+
+  let marker = null, mode = "point", polyPoints = [], polyLayers = [];
+
+  const pulseIcon = L.divIcon({ className:"", html:'<div class="pulse-marker"></div>', iconSize:[16,16], iconAnchor:[8,8] });
+  const dotIcon   = L.divIcon({ className:"", html:'<div style="width:8px;height:8px;border-radius:50%;background:#40916c;border:2px solid #fff;box-shadow:0 1px 4px rgba(0,0,0,.3)"></div>', iconSize:[8,8], iconAnchor:[4,4] });
+
+  // ── State ──────────────────────────────────────────────────────────────────
+  function showState(s) {
+    document.getElementById("state-placeholder").style.display = s==="placeholder" ? "flex"        : "none";
+    document.getElementById("state-loading").style.display     = s==="loading"     ? "flex"        : "none";
+    document.getElementById("state-results").style.display     = s==="results"     ? "flex"        : "none";
+  }
+
+  // ── Accordion ─────────────────────────────────────────────────────────────
+  document.querySelectorAll(".acc-btn").forEach(btn => {
+    btn.addEventListener("click", () => {
+      const body = document.getElementById(btn.dataset.target);
+      const open = btn.classList.toggle("open");
+      body.classList.toggle("open", open);
+    });
+  });
+
+  // ── Helpers ───────────────────────────────────────────────────────────────
+  function calcAreaHa(pts) {
+    if (pts.length < 3) return 0;
+    const R = 6371000; let area = 0;
+    for (let i = 0; i < pts.length; i++) {
+      const j = (i+1) % pts.length;
+      const lat1 = pts[i].lat * Math.PI/180, lat2 = pts[j].lat * Math.PI/180;
+      const dLng = (pts[j].lng - pts[i].lng) * Math.PI/180;
+      area += dLng * (2 + Math.sin(lat1) + Math.sin(lat2));
+    }
+    return Math.abs(area * R * R / 2) / 10000;
+  }
+  function centroid(pts) {
+    return { lat: pts.reduce((s,p)=>s+p.lat,0)/pts.length, lng: pts.reduce((s,p)=>s+p.lng,0)/pts.length };
+  }
+  function clearPoly() {
+    polyLayers.forEach(l => map.removeLayer(l));
+    polyLayers = []; polyPoints = [];
+    document.getElementById("poly-bar").classList.remove("show");
+    document.getElementById("poly-count").textContent = "0";
+  }
+
+  // ── India check ───────────────────────────────────────────────────────────
+  const INDIA = { latMin:6.5, latMax:37.6, lonMin:68.0, lonMax:97.4 };
+  function inIndia(lat, lng) { return lat>=INDIA.latMin&&lat<=INDIA.latMax&&lng>=INDIA.lonMin&&lng<=INDIA.lonMax; }
+  let toastTimer = null;
+  function showToast() {
+    const t = document.getElementById("india-toast");
+    t.classList.add("show"); clearTimeout(toastTimer);
+    toastTimer = setTimeout(() => t.classList.remove("show"), 4000);
+  }
+
+  // ── Reverse geocode (Nominatim) ────────────────────────────────────────────
+  async function getPlaceName(lat, lng) {
+    try {
+      const r = await fetch(`https://nominatim.openstreetmap.org/reverse?lat=${lat}&lon=${lng}&format=json`);
+      const d = await r.json();
+      const a = d.address || {};
+      const village  = a.village || a.town || a.suburb || a.hamlet || a.county || "";
+      const district = a.state_district || a.district || a.county || "";
+      const state    = a.state || "";
+      const name     = village || district || d.display_name?.split(",")[0] || "Unknown location";
+      const sub      = [district, state].filter(Boolean).join(", ");
+      return { name, sub };
+    } catch { return { name: `${lat.toFixed(4)}, ${lng.toFixed(4)}`, sub: "" }; }
+  }
+
+  // ── Run prediction ─────────────────────────────────────────────────────────
+  async function runPrediction(lat, lng, areaHa) {
+    if (!inIndia(lat, lng)) { showToast(); showState("placeholder"); return; }
+
+    showState("loading");
+
+    const [place, apiResp] = await Promise.all([
+      getPlaceName(lat, lng),
+      fetch("/predict", { method:"POST", headers:{"Content-Type":"application/json"}, body: JSON.stringify({lat, lon: lng}) })
+        .then(r => r.json()).catch(() => null),
+    ]);
+
+    if (!apiResp) { showState("placeholder"); alert("Server error — is Flask running?"); return; }
+
+    // Location header
+    document.getElementById("loc-name").textContent = place.name;
+    document.getElementById("loc-sub").textContent  = place.sub || `${lat.toFixed(4)}°N, ${lng.toFixed(4)}°E`;
+    const areaEl = document.getElementById("loc-area");
+    if (areaHa > 0) {
+      document.getElementById("loc-area-text").textContent =
+        areaHa >= 1 ? `${areaHa.toFixed(2)} ha · ${(areaHa*2.471).toFixed(2)} acres`
+                    : `${(areaHa*10000).toFixed(0)} m²`;
+      areaEl.style.display = "inline-flex";
+    } else {
+      areaEl.style.display = "none";
+    }
+
+    render(apiResp);
+    showState("results");
+  }
+
+  // ── Render ─────────────────────────────────────────────────────────────────
+  const SOIL_LABELS = { ph:"pH", n:"Nitrogen", p:"Phosphorus", k:"Potassium", organic_carbon:"Org. Carbon", s:"Sulphur", fe:"Iron", zn:"Zinc", cu:"Copper", b:"Boron", mn:"Manganese" };
+  const SOIL_UNITS  = { ph:"", n:"kg/ha", p:"kg/ha", k:"kg/ha", organic_carbon:"%", s:"kg/ha", fe:"mg/kg", zn:"mg/kg", cu:"mg/kg", b:"mg/kg", mn:"mg/kg" };
+
+  function render(d) {
+    const t = d.weather.temperature, r = d.weather.rainfall;
+
+    // Overview strip
+    document.getElementById("ov-temp").textContent  = t.toFixed(1)+"°C";
+    document.getElementById("ov-rain").textContent  = r.toFixed(0)+"mm";
+    const fBadge = document.getElementById("ov-fert");
+    fBadge.innerHTML = `<span class="fertility-pill ${d.fertility.fertility}">${d.fertility.fertility}</span>`;
+    document.getElementById("ov-crop").textContent = d.crops[0]?.crop || "--";
+    document.getElementById("ov-ph").textContent   = d.soil?.ph != null ? parseFloat(d.soil.ph).toFixed(1) : "--";
+    document.getElementById("ov-clay").textContent = d.texture?.clay_pct != null ? d.texture.clay_pct+"%" : "--";
+
+    // Direct crop recommendation (run_model)
+    const directEl = document.getElementById("sec-direct");
+    if (d.direct_crop) {
+      directEl.innerHTML = `
+        <div style="display:flex;align-items:center;gap:1rem;padding:0.25rem 0">
+          <div style="font-size:2.2rem">🌾</div>
+          <div>
+            <div style="font-size:1.3rem;font-weight:900;text-transform:capitalize;color:#065f46">${d.direct_crop}</div>
+            <div style="font-size:0.75rem;color:var(--muted);margin-top:2px">
+              Best crop for this soil &amp; climate based on N, P, K, pH, temperature and rainfall
+            </div>
+          </div>
+        </div>`;
+    } else {
+      directEl.innerHTML = '<p class="text-muted mb-0" style="font-size:.8rem">Unavailable</p>';
+    }
+
+    // Weather
+    document.getElementById("wx-temp").textContent = t.toFixed(1)+" °C";
+    document.getElementById("wx-rain").textContent = r.toFixed(0)+" mm";
+
+    // Forecast
+    const fcEl = document.getElementById("sec-forecast");
+    if (d.forecast?.length) {
+      fcEl.innerHTML = '<div class="fc-row">' + d.forecast.map(f => `
+        <div class="fc-day">
+          <div class="fd">${f.day}</div>
+          <div class="fi">${f.icon}</div>
+          <div class="ft">${f.max}°/${f.min}°</div>
+          <div class="fr">💧${f.rain}mm</div>
+        </div>`).join("") + "</div>";
+    } else {
+      fcEl.innerHTML = '<p class="text-muted mb-0" style="font-size:.8rem">Forecast unavailable</p>';
+    }
+
+    // Soil params
+    const soilEl = document.getElementById("sec-soil");
+    soilEl.innerHTML = '<div class="soil-grid">' +
+      Object.entries(d.soil).map(([k,v]) => `
+        <div class="soil-item">
+          <span class="sn">${SOIL_LABELS[k]||k}</span>
+          <span class="sv">${v!=null?parseFloat(v).toFixed(2):"N/A"}<small style="font-size:.62rem;color:var(--muted);margin-left:2px">${SOIL_UNITS[k]||""}</small></span>
+        </div>`).join("") + "</div>";
+
+    // Texture
+    const txEl = document.getElementById("sec-texture");
+    const tx = d.texture;
+    txEl.innerHTML = ['clay','sand','silt'].map((n,i) => {
+      const pct = tx?.[n+"_pct"]; const cols = ["bg-danger","bg-warning","bg-info"];
+      return `<div class="tex-row">
+        <span class="tl">${n.charAt(0).toUpperCase()+n.slice(1)}</span>
+        <div class="progress"><div class="progress-bar ${cols[i]}" style="width:${pct??0}%"></div></div>
+        <span class="tp">${pct!=null?pct+"%":"N/A"}</span>
+      </div>`;
+    }).join("") + (tx?.clay_pct==null ? '<p class="text-muted mt-1 mb-0" style="font-size:.71rem">SoilGrids data unavailable here</p>' : '');
+
+    // Fertility
+    const fertEl = document.getElementById("sec-fertility");
+    const f = d.fertility;
+    fertEl.innerHTML = `
+      <div class="fert-display">
+        <div class="fert-big ${f.fertility}">${f.fertility}</div>
+        <div class="conf-wrap">
+          <div class="cl">Confidence: ${f.confidence}%</div>
+          <div class="progress"><div class="progress-bar ${f.fertility==="high"?"bg-success":f.fertility==="medium"?"bg-warning":"bg-danger"}" style="width:${f.confidence}%"></div></div>
+        </div>
+      </div>`;
+
+    // Crops
+    document.getElementById("sec-crops").innerHTML = d.crops.map((c,i) => `
+      <div class="crop-row">
+        <div class="crop-rank ${i===0?"first":""}">${c.rank}</div>
+        <span class="crop-name">${c.crop}</span>
+        <div class="crop-bar"><div class="progress"><div class="progress-bar ${i===0?"bg-warning":"bg-success"}" style="width:${c.score}%"></div></div></div>
+        <span class="crop-score">${c.score}%</span>
+      </div>`).join("");
+
+    // Fertilizer
+    const fa = d.fertilizer;
+    document.getElementById("sec-fert").innerHTML =
+      `<div class="fert-crop"><i class="fa-solid fa-seedling"></i>${fa.crop}</div>` +
+      [["N",fa.n_advice,fa.n_deficit],["P",fa.p_advice,fa.p_deficit],["K",fa.k_advice,fa.k_deficit]].map(([n,msg,def]) => `
+        <div class="fert-row ${def===0?"ok":"add"}">
+          <span class="fert-n">${n}</span>
+          <span class="fert-msg">${def===0?'<i class="fa-solid fa-circle-check text-success me-1"></i>':'<i class="fa-solid fa-circle-exclamation text-danger me-1"></i>'}${msg}</span>
+        </div>`).join("");
+
+    // Calendar
+    const cal = d.calendar;
+    const calEl = document.getElementById("sec-calendar");
+    if (cal?.sow_indices) {
+      const MONTHS=["Jan","Feb","Mar","Apr","May","Jun","Jul","Aug","Sep","Oct","Nov","Dec"];
+      const sowS=new Set(cal.sow_indices), harvS=new Set(cal.harvest_indices);
+      calEl.innerHTML = `
+        <div class="cal-info">
+          <strong style="text-transform:capitalize">${cal.crop}</strong>
+          <span class="season-badge">${cal.season}</span>
+          <span style="color:var(--muted);font-size:.75rem">${cal.duration}</span>
+        </div>
+        <div class="cal-grid">${MONTHS.map((m,i) => {
+          const s=sowS.has(i), h=harvS.has(i);
+          return `<div class="cal-m ${s&&h?"both":s?"sow":h?"harvest":""}">${m}</div>`;
+        }).join("")}</div>
+        <div class="cal-legend">
+          <span class="leg"><span class="leg-dot" style="background:#bbf7d0"></span> Sow</span>
+          <span class="leg"><span class="leg-dot" style="background:#fde68a"></span> Harvest</span>
+        </div>`;
+    } else { calEl.innerHTML = '<p class="text-muted mb-0" style="font-size:.8rem">No data</p>'; }
+
+    // MSP
+    const msp = d.msp;
+    document.getElementById("sec-msp").innerHTML =
+      (msp.msp ? `<div class="msp-big">₹${msp.msp.toLocaleString("en-IN")}<small>per quintal · MSP ${msp.msp_year} · ${msp.crop}</small></div>` :
+        `<p class="text-muted mb-2" style="font-size:.8rem">No MSP declared for <strong>${msp.crop}</strong></p>`) +
+      msp.schemes.map(s => `
+        <div class="scheme-item">
+          <i class="fa-solid fa-shield-halved mt-1"></i>
+          <div>
+            <div class="scheme-name">${s.name}</div>
+            <div class="scheme-ben">${s.benefit}</div>
+            <a href="${s.link}" target="_blank" class="scheme-link">Apply →</a>
+          </div>
+        </div>`).join("");
+
+    // APMCs
+    document.getElementById("sec-apmc").innerHTML = d.apmcs.map(a => `
+      <div class="apmc-card">
+        <div class="apmc-top">
+          <div class="apmc-name">${a.name}</div>
+          <div class="apmc-dist"><i class="fa-solid fa-route" style="font-size:.6rem"></i> ${a.distance_km} km</div>
+        </div>
+        <div class="apmc-loc">${a.district}, ${a.state}</div>
+        <div class="apmc-tags">${a.commodities.map(c=>`<span class="apmc-tag">${c}</span>`).join("")}</div>
+        <a class="apmc-link" href="${a.maps_url}" target="_blank"><i class="fa-solid fa-map-location-dot"></i> View on Google Maps</a>
+      </div>`).join("");
+  }
+
+  // ── Map click ──────────────────────────────────────────────────────────────
+  map.on("click", async e => {
+    const { lat, lng } = e.latlng;
+    if (mode === "point") {
+      if (marker) map.removeLayer(marker);
+      marker = L.marker([lat,lng], { icon: pulseIcon }).addTo(map);
+      await runPrediction(lat, lng, 0);
+    } else {
+      polyPoints.push({lat,lng});
+      const dot = L.marker([lat,lng], {icon:dotIcon}).addTo(map);
+      polyLayers.push(dot);
+      if (polyPoints.length > 1) {
+        const prev = polyPoints[polyPoints.length-2];
+        const line = L.polyline([[prev.lat,prev.lng],[lat,lng]], {color:"#40916c",weight:2.5,dashArray:"6 4"}).addTo(map);
+        polyLayers.push(line);
+      }
+      document.getElementById("poly-count").textContent = polyPoints.length;
+      document.getElementById("poly-bar").classList.add("show");
+    }
+  });
+
+  L.DomEvent.disableClickPropagation(document.getElementById("poly-bar"));
+
+  // ── Polygon finish/cancel ──────────────────────────────────────────────────
+  document.getElementById("poly-finish").addEventListener("click", async e => {
+    e.stopPropagation();
+    if (polyPoints.length < 3) { alert("Add at least 3 points."); return; }
+    const poly = L.polygon(polyPoints.map(p=>[p.lat,p.lng]), {color:"#40916c",fillColor:"#74c69d",fillOpacity:0.25,weight:2}).addTo(map);
+    polyLayers.push(poly);
+    map.fitBounds(poly.getBounds(), {padding:[40,40]});
+    const area = calcAreaHa(polyPoints), c = centroid(polyPoints);
+    if (marker) map.removeLayer(marker);
+    marker = L.marker([c.lat,c.lng], {icon:pulseIcon}).addTo(map);
+    document.getElementById("poly-bar").classList.remove("show");
+    await runPrediction(c.lat, c.lng, area);
+  });
+
+  document.getElementById("poly-cancel").addEventListener("click", e => { e.stopPropagation(); clearPoly(); });
+
+  // ── Mode toggle ────────────────────────────────────────────────────────────
+  document.getElementById("btn-point").addEventListener("click", () => {
+    mode = "point";
+    document.getElementById("btn-point").classList.add("active");
+    document.getElementById("btn-polygon").classList.remove("active");
+    map.getContainer().style.cursor = "crosshair";
+    clearPoly();
+  });
+  document.getElementById("btn-polygon").addEventListener("click", () => {
+    mode = "polygon";
+    document.getElementById("btn-polygon").classList.add("active");
+    document.getElementById("btn-point").classList.remove("active");
+    map.getContainer().style.cursor = "cell";
+  });
+
+  // ── Locate Me ─────────────────────────────────────────────────────────────
+  document.getElementById("locate-btn").addEventListener("click", () => {
+    const btn = document.getElementById("locate-btn");
+    if (!navigator.geolocation) { alert("Geolocation not supported."); return; }
+    btn.classList.add("locating");
+    navigator.geolocation.getCurrentPosition(pos => {
+      btn.classList.remove("locating");
+      map.setView([pos.coords.latitude, pos.coords.longitude], 13);
+      map.fire("click", { latlng: L.latLng(pos.coords.latitude, pos.coords.longitude) });
+    }, () => { btn.classList.remove("locating"); alert("Location access denied."); });
+  });
+
+  showState("placeholder");
+
+  // ── Lat/Lon direct entry ──────────────────────────────────────────────────
+  function gotoLatLon() {
+    const lat = parseFloat(document.getElementById("inp-lat").value);
+    const lng = parseFloat(document.getElementById("inp-lon").value);
+    if (isNaN(lat) || isNaN(lng)) { alert("Enter valid latitude and longitude."); return; }
+    map.setView([lat, lng], 13);
+    if (marker) map.removeLayer(marker);
+    marker = L.marker([lat, lng], { icon: pulseIcon }).addTo(map);
+    runPrediction(lat, lng, 0);
+  }
+  document.getElementById("btn-goto").addEventListener("click", gotoLatLon);
+  ["inp-lat","inp-lon"].forEach(id => {
+    document.getElementById(id).addEventListener("keydown", e => { if (e.key==="Enter") gotoLatLon(); });
+  });
+
+  // ── Search box (Nominatim — India only) ───────────────────────────────────
+  const searchInput    = document.getElementById("search-input");
+  const searchDropdown = document.getElementById("search-dropdown");
+  const searchClear    = document.getElementById("search-clear");
+  let searchTimer = null;
+
+  searchInput.addEventListener("input", () => {
+    const q = searchInput.value.trim();
+    searchClear.style.display = q ? "block" : "none";
+    clearTimeout(searchTimer);
+    if (q.length < 2) { searchDropdown.classList.remove("show"); return; }
+    searchDropdown.innerHTML = '<div class="search-spinner"><i class="fa-solid fa-spinner fa-spin"></i> Searching…</div>';
+    searchDropdown.classList.add("show");
+    searchTimer = setTimeout(() => doSearch(q), 400);
+  });
+
+  searchInput.addEventListener("keydown", e => {
+    if (e.key === "Escape") closeSearch();
+  });
+
+  searchClear.addEventListener("click", () => {
+    searchInput.value = "";
+    searchClear.style.display = "none";
+    closeSearch();
+    searchInput.focus();
+  });
+
+  document.addEventListener("click", e => {
+    if (!e.target.closest(".search-wrap")) closeSearch();
+  });
+
+  function closeSearch() {
+    searchDropdown.classList.remove("show");
+    searchDropdown.innerHTML = "";
+  }
+
+  async function doSearch(q) {
+    try {
+      const r = await fetch(
+        `https://nominatim.openstreetmap.org/search?q=${encodeURIComponent(q)}&format=json&limit=6&countrycodes=in&addressdetails=1`
+      );
+      const results = await r.json();
+      if (!results.length) {
+        searchDropdown.innerHTML = '<div class="search-spinner">No results found</div>';
+        return;
+      }
+      searchDropdown.innerHTML = results.map(res => {
+        const a    = res.address || {};
+        const name = a.village || a.town || a.city || a.suburb || a.hamlet || res.display_name.split(",")[0];
+        const sub  = [a.state_district || a.district || a.county, a.state].filter(Boolean).join(", ");
+        return `<div class="search-item" data-lat="${res.lat}" data-lon="${res.lon}">
+          <i class="fa-solid fa-location-dot mt-1"></i>
+          <div><div class="si-name">${name}</div><div class="si-sub">${sub}</div></div>
+        </div>`;
+      }).join("");
+
+      searchDropdown.querySelectorAll(".search-item").forEach(el => {
+        el.addEventListener("click", () => {
+          const lat = parseFloat(el.dataset.lat);
+          const lng = parseFloat(el.dataset.lon);
+          searchInput.value = el.querySelector(".si-name").textContent;
+          searchClear.style.display = "block";
+          closeSearch();
+          map.setView([lat, lng], 13);
+          if (marker) map.removeLayer(marker);
+          marker = L.marker([lat, lng], { icon: pulseIcon }).addTo(map);
+          runPrediction(lat, lng, 0);
+        });
+      });
+    } catch {
+      searchDropdown.innerHTML = '<div class="search-spinner">Search failed</div>';
+    }
+  }
+</script>
+</body>
+</html>

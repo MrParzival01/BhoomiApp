@@ -1,0 +1,17 @@
+# web UI
+flask
+
+# ML — weather fetching
+requests
+
+# crop_pridiction — crop prediction model
+pandas
+scikit-learn
+numpy
+
+# ml_pipeline — agriculture AI pipeline
+geopandas
+lightgbm
+optuna
+earthengine-api
+matplotlib
