@@ -4,6 +4,7 @@ warnings.filterwarnings("ignore")
 from weather import get_weather
 from predict import predict
 from recommendations import get_fertility, get_fertilizer_advice, rank_crops
+from crop_nutrition import get_crop_urea_dap_mop_dose
 
 # Raichur-Lingasur coordinates
 lat = 16.1550
@@ -50,3 +51,27 @@ print("=" * 40)
 print(f"  N : {advice['n_advice']}")
 print(f"  P : {advice['p_advice']}")
 print(f"  K : {advice['k_advice']}")
+
+# ── 6. Crop Nutrition Doses ────────────────────────────────────────────────────
+nutrition = get_crop_urea_dap_mop_dose(
+    n   = soil.get("n"),
+    p   = soil.get("p"),
+    k   = soil.get("k"),
+    ph  = soil.get("ph"),
+    ec  = soil.get("ec"),
+    oc  = soil.get("organic_carbon"),
+    crop= best_crop,
+)
+print(f"\n" + "=" * 40)
+print(f"CROP NUTRITION DOSES — {best_crop.upper()}")
+print("=" * 40)
+if "error" in nutrition:
+    print(f"  {nutrition['error']}")
+else:
+    for stage in nutrition["crop_fertilizer"]:
+        for line in stage:
+            print(f"  {line}")
+    print()
+    for row in nutrition["fym"]:
+        for line in row:
+            print(f"  {line}")

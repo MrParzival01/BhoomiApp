@@ -18,6 +18,7 @@ Game/
     ├── ndvi.py             ← Google Earth Engine NDVI fetcher
     ├── predict.py          ← soil parameter prediction (LightGBM)
     ├── recommendations.py  ← fertility score, crop ranking, fertilizer advice
+    ├── crop_nutrition.py   ← fertilizer doses (Urea/DAP/MOP/SSP) per crop
     ├── map_utils.py        ← feature assembly + dummy fallback
     ├── run_test.py         ← full pipeline test
     └── module/             ← trained LightGBM + RandomForest model files
@@ -193,7 +194,47 @@ print(advice['k_advice'])
 
 ---
 
-### 6. Crop Prediction — `crop_pridiction/model.py`
+### 6. Crop Nutrition Doses — `ML/crop_nutrition.py`
+
+Given soil N/P/K and crop name, returns recommended Urea, DAP, MOP, and SSP doses in both kg/hectare and kg/acre. Adjusts doses up or down 25% based on actual soil levels. Also returns FYM requirement and target yield.
+
+Covers **57 crops** including rice, wheat, maize, cotton, sugarcane, banana varieties, coffee, rubber, vegetables, and spices.
+
+```python
+from crop_nutrition import get_crop_urea_dap_mop_dose, get_crop_list
+
+# Get fertilizer doses for rice given soil data
+result = get_crop_urea_dap_mop_dose(
+    n=120, p=45, k=200,
+    ph=6.8, ec=0.5, oc=0.6,
+    crop="rice"
+)
+
+for line in result["crop_fertilizer"][0]:
+    print(line)
+# Urea : 54.35 kg/hectare  21.74 kg/acre
+# DAP  : 97.83 kg/hectare  39.13 kg/acre
+# MOP  : 100.0 kg/hectare  40.0  kg/acre
+# SSP  : 375.0 kg/hectare  150.0 kg/acre
+
+for line in result["fym"][0]:
+    print(line)
+# Soil remedy   : No remedy needed
+# Soil fertility: Medium fertile, soil is fertile
+# FYM           : 10.0 tons/hectare
+# Target yield  : 18-19 Quintals per acre
+```
+
+Pass `ph=None, ec=None, oc=None` to skip soil remedy output. Pass `n=0, p=0, k=0` to use the standard table values without adjustment.
+
+```python
+# List all supported crops
+print(list(get_crop_list(api=True)))
+```
+
+---
+
+### 7. Crop Prediction — `crop_pridiction/model.py`
 
 Given exact soil values and environment data, returns the single best crop to grow.
 
