@@ -1,0 +1,85 @@
+1. Goal
+
+A farmer enters their
+coordinates and gets a complete, data-driven farm plan — soil analysis, best crop to grow,
+exact fertilizer doses.
+
+2. Target User
+
+  Primary   : Small and medium farmers anywhere in India with GPS access.
+  Secondary : Agri-input cooperatives, KVK officers, and government extension workers
+              who want to track regional soil health and give precision advice.
+
+3. Solution Architecture
+
+The system is a Flask web API backed by trained ML models and real-time data sources.
+One POST to /predict returns a full farm intelligence report.
+
+  Input  : Latitude, Longitude
+  Output : Weather, Soil Parameters, Fertility, Top 5 Crops, Fertilizer Doses.
+
+All slow external API calls (weather, soil texture, forecast) run in parallel using
+ThreadPoolExecutor to keep response time under 5 seconds.
+
+4. Modules and Data Sources
+
+  weather.py        — Temperature and annual rainfall from NASA POWER API (no key needed)
+  soilgrids.py      — Clay, sand, silt % from ISRIC SoilGrids REST API (0–5 cm depth)
+  predict.py        — Predicts 11 soil parameters (pH, N, P, K, OC, S, Fe, Zn, Cu, B, Mn)
+                      using trained LightGBM models with GPS + weather + texture features
+  recommendations.py— Three functions:
+                        get_fertility()        : Random Forest → Low / Medium / High fertility
+                        rank_crops()           : GradientBoosting → Top 5 crops with % score
+                        get_fertilizer_advice(): NPK deficit vs crop requirement → add X kg/ha
+  crop_nutrition.py — Calculates Urea, DAP, MOP, SSP doses (kg/hectare and kg/acre)
+                      for 57 crops. Adjusts doses ±25% based on actual soil N/P/K levels.
+                      Also returns FYM requirement and target yield per crop.
+  forecast.py       — 7-day daily weather forecast from Open-Meteo (temp, rain, condition)
+  crop_calendar.py  — Sowing and harvest months for 22 crops across Kharif / Rabi / Zaid seasons
+  apmc.py           — Nearest APMC markets (haversine distance), MSP 2024-25 prices,
+                      and 5 active government schemes (PM-KISAN, PMFBY, KCC, etc.)
+  ndvi.py           — Sentinel-2 NDVI via Google Earth Engine (requires GEE auth)
+
+5. ML Models
+
+  Model                  Task                        Algorithm
+  ─────────────────────────────────────────────────────────────────────
+  lgbm_ph.pkl            Predict soil pH             LightGBM Regressor
+  lgbm_n/p/k.pkl         Predict N, P, K (kg/ha)     LightGBM Regressor
+  lgbm_organic_carbon    Predict organic carbon %     LightGBM Regressor
+  lgbm_s/fe/zn/cu/b/mn   Predict micronutrients       LightGBM Regressor
+  rf_fertility.pkl        Classify soil fertility      Random Forest Classifier
+  classifier.pkl          Rank 22 crops               GradientBoosting Classifier
+
+  All models trained on Indian soil and crop data. Input features include GPS-derived
+  climate (NASA POWER), satellite vegetation index (NDVI), elevation, and soil texture.
+
+6. Fertilizer Dose Logic (crop_nutrition.py)
+
+  Base doses are stored per crop as N:P:K ratios (kg/hectare).
+  If actual soil NPK is available, doses are adjusted:
+    Soil N < 280 kg/ha  → add 25% more N
+    Soil N 280–560      → use standard dose
+    Soil N > 560        → reduce N by 25%
+  Same logic applies for P and K with their own thresholds.
+
+  Final output per crop:
+    Urea dose  = (100/46) × (N – 18% of DAP contribution)
+    DAP dose   = (kg/46) × P
+    MOP dose   = (kg/60) × K
+    SSP dose   = (P/16) × kg
+
+  All values returned in both kg/hectare and kg/acre.
+
+7. Crop Coverage
+
+  Soil fertility model  : 22 crops (rice, maize, cotton, banana, mango, coffee, ...)
+  Crop nutrition doses  : 57 crops (including arabica_coffee year-wise, rubber year-wise,
+                          banana by variety: pache / kandu / other, chilli green + red, ...)
+
+8. Success Criteria
+
+  Soil accuracy    : LightGBM models predict pH within ±0.3, N/P/K within ±15%
+  Crop match       : Top-1 crop recommendation matches ground truth in >80% of test cases
+  Response time    : Full /predict response under 5 seconds (parallel API calls)
+  Coverage         : Works for any GPS coordinate in India with no manual soil testing
